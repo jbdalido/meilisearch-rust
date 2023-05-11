@@ -46,7 +46,7 @@ pub enum Error {
     /// The http client encountered an error.
     #[cfg(not(target_arch = "wasm32"))]
     #[error("HTTP request failed: {}", .0)]
-    HttpError(isahc::Error),
+    HttpError(reqwest::Error),
 
     /// The http client encountered an error.
     #[cfg(target_arch = "wasm32")]
@@ -245,16 +245,16 @@ impl std::fmt::Display for ErrorCode {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-impl From<isahc::Error> for Error {
-    fn from(error: isahc::Error) -> Error {
-        if error.kind() == isahc::error::ErrorKind::ConnectionFailed {
-            Error::UnreachableServer
-        } else {
-            Error::HttpError(error)
-        }
-    }
-}
+// #[cfg(not(target_arch = "wasm32"))]
+// impl From<isahc::Error> for Error {
+//     fn from(error: isahc::Error) -> Error {
+//         if error.kind() == isahc::error::ErrorKind::ConnectionFailed {
+//             Error::UnreachableServer
+//         } else {
+//             Error::HttpError(error)
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod test {

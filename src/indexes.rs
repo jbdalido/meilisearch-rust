@@ -610,17 +610,18 @@ impl Index {
         } else {
             format!("{}/indexes/{}/documents", self.client.host, self.uid)
         };
-        stream_request::<(), T, TaskInfo>(
-            &url,
-            self.client.get_api_key(),
-            Method::Post {
-                query: (),
-                body: payload,
-            },
-            content_type,
-            202,
-        )
-        .await
+        unimplemented!()
+        // stream_request::<(), T, TaskInfo>(
+        //     &url,
+        //     self.client.get_api_key(),
+        //     Method::Post {
+        //         query: (),
+        //         body: payload,
+        //     },
+        //     content_type,
+        //     202,
+        // )
+        // .await
     }
 
     /// Alias for [Index::add_or_replace].
@@ -766,17 +767,18 @@ impl Index {
         } else {
             format!("{}/indexes/{}/documents", self.client.host, self.uid)
         };
-        stream_request::<(), T, TaskInfo>(
-            &url,
-            self.client.get_api_key(),
-            Method::Put {
-                query: (),
-                body: payload,
-            },
-            content_type,
-            202,
-        )
-        .await
+        unimplemented!()
+        // stream_request::<(), T, TaskInfo>(
+        //     &url,
+        //     self.client.get_api_key(),
+        //     Method::Put {
+        //         query: (),
+        //         body: payload,
+        //     },
+        //     content_type,
+        //     202,
+        // )
+        // .await
     }
 
     /// Delete all documents in the [Index].

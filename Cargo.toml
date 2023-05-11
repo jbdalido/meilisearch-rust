@@ -28,7 +28,7 @@ meilisearch-index-setting-macro = { path = "meilisearch-index-setting-macro", ve
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 futures = "0.3"
 futures-io = "0.3.26"
-isahc = { version = "1.0", features = ["http2", "text-decoding"], default_features = false }
+reqwest = { version = "0.11", default-features = false }
 uuid = { version = "1.1.2", features = ["v4"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -37,9 +37,6 @@ web-sys = { version = "0.3", features = ["RequestInit", "Headers", "Window", "Re
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 
-[features]
-default = ["isahc-static-curl"]
-isahc-static-curl = ["isahc/static-curl"]
 
 [dev-dependencies]
 env_logger = "0.10"
