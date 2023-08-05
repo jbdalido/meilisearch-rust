@@ -11,8 +11,7 @@
 //! - During a dump import, all indexes contained in the indicated `.dump` file are imported along with their associated documents and [settings](crate::settings::Settings).
 //! Any existing [index](crate::indexes::Index) with the same uid as an index in the dump file will be overwritten.
 //!
-//! - Dump imports are [performed at launch](https://docs.meilisearch.com/reference/features/configuration.html#import-dump) using an option.
-//! [Batch size](https://docs.meilisearch.com/reference/features/configuration.html#dump-batch-size) can also be set at this time.
+//! - Dump imports are [performed at launch](https://www.meilisearch.com/docs/learn/configuration/instance_options#import-dump) using an option.
 //!
 //! # Example
 //!
@@ -39,14 +38,14 @@
 //! # });
 //! ```
 
-use crate::{client::Client, errors::Error, request::*, task_info::TaskInfo};
+use crate::{request::*, Client, Error, TaskInfo};
 
 /// Dump related methods.
 /// See the [dumps](crate::dumps) module.
 impl Client {
     /// Triggers a dump creation process.
     ///
-    /// Once the process is complete, a dump is created in the [dumps directory](https://docs.meilisearch.com/reference/features/configuration.html#dumps-destination).
+    /// Once the process is complete, a dump is created in the [dumps directory](https://www.meilisearch.com/docs/learn/configuration/instance_options#dump-directory).
     /// If the dumps directory does not exist yet, it will be created.
     ///
     /// # Example
@@ -87,7 +86,7 @@ impl Client {
     }
 }
 
-/// Alias for [create_dump](Client::create_dump).
+/// Alias for [`create_dump`](Client::create_dump).
 pub async fn create_dump(client: &Client) -> Result<TaskInfo, Error> {
     client.create_dump().await
 }

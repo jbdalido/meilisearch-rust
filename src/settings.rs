@@ -1,8 +1,6 @@
 use crate::{
-    errors::Error,
-    indexes::Index,
     request::{request, Method},
-    task_info::TaskInfo,
+    Error, Index, TaskInfo,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,7 +11,24 @@ pub struct PaginationSetting {
     pub max_total_hits: usize,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MinWordSizeForTypos {
+    pub one_typo: Option<u8>,
+    pub two_typos: Option<u8>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct TypoToleranceSettings {
+    pub enabled: Option<bool>,
+    pub disable_on_attributes: Option<Vec<String>>,
+    pub disable_on_words: Option<Vec<String>>,
+    pub min_word_size_for_typos: Option<MinWordSizeForTypos>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Eq, PartialEq, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct FacetingSettings {
     pub max_values_per_facet: usize,
@@ -26,7 +41,7 @@ pub struct FacetingSettings {
 /// # Example
 ///
 /// ```
-/// # use meilisearch_sdk::settings::Settings;
+/// # use meilisearch_sdk::Settings;
 /// let settings = Settings::new()
 ///     .with_stop_words(["a", "the", "of"]);
 ///
@@ -53,10 +68,10 @@ pub struct Settings {
     /// List of words ignored by Meilisearch when present in search queries.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_words: Option<Vec<String>>,
-    /// List of [ranking rules](https://docs.meilisearch.com/learn/core_concepts/relevancy.html#order-of-the-rules) sorted by order of importance.
+    /// List of [ranking rules](https://www.meilisearch.com/docs/learn/core_concepts/relevancy#order-of-the-rules) sorted by order of importance.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ranking_rules: Option<Vec<String>>,
-    /// Attributes to use for [filtering and faceted search](https://docs.meilisearch.com/reference/features/filtering_and_faceted_search.html).
+    /// Attributes to use for [filtering](https://www.meilisearch.com/docs/learn/advanced/filtering).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filterable_attributes: Option<Vec<String>>,
     /// Attributes to sort.
@@ -77,25 +92,18 @@ pub struct Settings {
     /// Faceting settings.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub faceting: Option<FacetingSettings>,
+    /// TypoTolerance settings
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub typo_tolerance: Option<TypoToleranceSettings>,
 }
 
 #[allow(missing_docs)]
 impl Settings {
     /// Create undefined settings.
     pub fn new() -> Settings {
-        Settings {
-            synonyms: None,
-            stop_words: None,
-            ranking_rules: None,
-            filterable_attributes: None,
-            sortable_attributes: None,
-            distinct_attribute: None,
-            searchable_attributes: None,
-            displayed_attributes: None,
-            pagination: None,
-            faceting: None,
-        }
+        Self::default()
     }
+
     pub fn with_synonyms<S, U, V>(self, synonyms: HashMap<S, U>) -> Settings
     where
         S: AsRef<str>,
@@ -136,6 +144,13 @@ impl Settings {
     pub fn with_pagination(self, pagination_settings: PaginationSetting) -> Settings {
         Settings {
             pagination: Some(pagination_settings),
+            ..self
+        }
+    }
+
+    pub fn with_typo_tolerance(self, typo_tolerance_settings: TypoToleranceSettings) -> Settings {
+        Settings {
+            typo_tolerance: Some(typo_tolerance_settings),
             ..self
         }
     }
@@ -224,7 +239,7 @@ impl Settings {
 
     pub fn with_faceting(self, faceting: &FacetingSettings) -> Settings {
         Settings {
-            faceting: Some(faceting.clone()),
+            faceting: Some(*faceting),
             ..self
         }
     }
@@ -260,7 +275,7 @@ impl Index {
         .await
     }
 
-    /// Get [synonyms](https://docs.meilisearch.com/reference/features/synonyms.html) of the [Index].
+    /// Get [synonyms](https://www.meilisearch.com/docs/reference/api/settings#get-synonyms) of the [Index].
     ///
     /// # Example
     ///
@@ -293,7 +308,7 @@ impl Index {
         .await
     }
 
-    /// Get [pagination](https://docs.meilisearch.com/learn/configuration/settings.html#pagination) of the [Index].
+    /// Get [pagination](https://www.meilisearch.com/docs/reference/api/settings#pagination) of the [Index].
     ///
     /// # Example
     ///
@@ -326,7 +341,7 @@ impl Index {
         .await
     }
 
-    /// Get [stop-words](https://docs.meilisearch.com/reference/features/stop_words.html) of the [Index].
+    /// Get [stop-words](https://www.meilisearch.com/docs/reference/api/settings#stop-words) of the [Index].
     ///
     /// # Example
     ///
@@ -358,7 +373,7 @@ impl Index {
         .await
     }
 
-    /// Get [ranking rules](https://docs.meilisearch.com/learn/core_concepts/relevancy.html#ranking-rules) of the [Index].
+    /// Get [ranking rules](https://www.meilisearch.com/docs/reference/api/settings#ranking-rules) of the [Index].
     ///
     /// # Example
     ///
@@ -391,7 +406,7 @@ impl Index {
         .await
     }
 
-    /// Get [filterable attributes](https://docs.meilisearch.com/reference/features/filtering_and_faceted_search.html) of the [Index].
+    /// Get [filterable attributes](https://www.meilisearch.com/docs/reference/api/settings#filterable-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -424,7 +439,7 @@ impl Index {
         .await
     }
 
-    /// Get [sortable attributes](https://docs.meilisearch.com/reference/features/sorting.html) of the [Index].
+    /// Get [sortable attributes](https://www.meilisearch.com/docs/reference/api/settings#sortable-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -457,7 +472,7 @@ impl Index {
         .await
     }
 
-    /// Get the [distinct attribute](https://docs.meilisearch.com/reference/features/settings.html#distinct-attribute) of the [Index].
+    /// Get the [distinct attribute](https://www.meilisearch.com/docs/reference/api/settings#distinct-attribute) of the [Index].
     ///
     /// # Example
     ///
@@ -490,7 +505,7 @@ impl Index {
         .await
     }
 
-    /// Get [searchable attributes](https://docs.meilisearch.com/reference/features/field_properties.html#searchable-fields) of the [Index].
+    /// Get [searchable attributes](https://www.meilisearch.com/docs/reference/api/settings#searchable-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -523,7 +538,7 @@ impl Index {
         .await
     }
 
-    /// Get [displayed attributes](https://docs.meilisearch.com/reference/features/settings.html#displayed-attributes) of the [Index].
+    /// Get [displayed attributes](https://www.meilisearch.com/docs/reference/api/settings#displayed-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -556,7 +571,7 @@ impl Index {
         .await
     }
 
-    /// Get [faceting](https://docs.meilisearch.com/reference/api/settings.html#faceting) settings of the [Index].
+    /// Get [faceting](https://www.meilisearch.com/docs/reference/api/settings#faceting) settings of the [Index].
     ///
     /// # Example
     ///
@@ -589,14 +604,44 @@ impl Index {
         .await
     }
 
-    /// Update [settings](../settings/struct.Settings.html) of the [Index].
+    /// Get [typo tolerance](https://docs.meilisearch.com/learn/configuration/typo_tolerance.html#typo-tolerance) of the [Index].
+    ///
+    /// ```
+    /// # use meilisearch_sdk::{client::*, indexes::*};
+    /// #
+    /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
+    /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
+    /// #
+    /// # futures::executor::block_on(async move {
+    /// let client = Client::new(MEILISEARCH_URL, Some(MEILISEARCH_API_KEY));
+    /// # client.create_index("get_typo_tolerance", None).await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    /// let index = client.index("get_typo_tolerance");
+    ///
+    /// let typo_tolerance = index.get_typo_tolerance().await.unwrap();
+    /// # index.delete().await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    /// # });
+    /// ```
+    pub async fn get_typo_tolerance(&self) -> Result<TypoToleranceSettings, Error> {
+        request::<(), (), TypoToleranceSettings>(
+            &format!(
+                "{}/indexes/{}/settings/typo-tolerance",
+                self.client.host, self.uid
+            ),
+            self.client.get_api_key(),
+            Method::Get { query: () },
+            200,
+        )
+        .await
+    }
+
+    /// Update [settings](../settings/struct.Settings) of the [Index].
     ///
     /// Updates in the settings are partial. This means that any parameters corresponding to a `None` value will be left unchanged.
     ///
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*, settings::{Settings, PaginationSetting}};
+    /// # use meilisearch_sdk::{client::*, indexes::*, Settings, PaginationSetting};
     /// #
     /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
     /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
@@ -629,12 +674,12 @@ impl Index {
         .await
     }
 
-    /// Update [synonyms](https://docs.meilisearch.com/reference/features/synonyms.html) of the [Index].
+    /// Update [synonyms](https://www.meilisearch.com/docs/reference/api/settings#synonyms) of the [Index].
     ///
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*, settings::Settings};
+    /// # use meilisearch_sdk::{client::*, indexes::*, Settings};
     /// #
     /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
     /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
@@ -672,12 +717,12 @@ impl Index {
         .await
     }
 
-    /// Update [pagination](https://docs.meilisearch.com/learn/configuration/settings.html#pagination) of the [Index].
+    /// Update [pagination](https://www.meilisearch.com/docs/reference/api/settings#pagination) of the [Index].
     ///
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*, settings::{Settings, PaginationSetting}};
+    /// # use meilisearch_sdk::{client::*, indexes::*, Settings, PaginationSetting};
     /// #
     /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
     /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
@@ -708,12 +753,12 @@ impl Index {
         .await
     }
 
-    /// Update [stop-words](https://docs.meilisearch.com/reference/features/stop_words.html) of the [Index].
+    /// Update [stop-words](https://www.meilisearch.com/docs/reference/api/settings#stop-words) of the [Index].
     ///
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*, settings::Settings};
+    /// # use meilisearch_sdk::{client::*, indexes::*, Settings};
     /// #
     /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
     /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
@@ -750,7 +795,7 @@ impl Index {
         .await
     }
 
-    /// Update [ranking rules](https://docs.meilisearch.com/learn/core_concepts/relevancy.html#ranking-rules) of the [Index].
+    /// Update [ranking rules](https://www.meilisearch.com/docs/reference/api/settings#ranking-rules) of the [Index].
     ///
     /// # Example
     ///
@@ -801,7 +846,7 @@ impl Index {
         .await
     }
 
-    /// Update [filterable attributes](https://docs.meilisearch.com/reference/features/filtering_and_faceted_search.html) of the [Index].
+    /// Update [filterable attributes](https://www.meilisearch.com/docs/reference/api/settings#filterable-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -843,7 +888,7 @@ impl Index {
         .await
     }
 
-    /// Update [sortable attributes](https://docs.meilisearch.com/reference/features/sorting.html) of the [Index].
+    /// Update [sortable attributes](https://www.meilisearch.com/docs/reference/api/settings#sortable-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -885,7 +930,7 @@ impl Index {
         .await
     }
 
-    /// Update the [distinct attribute](https://docs.meilisearch.com/reference/features/settings.html#distinct-attribute) of the [Index].
+    /// Update the [distinct attribute](https://www.meilisearch.com/docs/reference/api/settings#distinct-attribute) of the [Index].
     ///
     /// # Example
     ///
@@ -923,7 +968,7 @@ impl Index {
         .await
     }
 
-    /// Update [searchable attributes](https://docs.meilisearch.com/reference/features/field_properties.html#searchable-fields) of the [Index].
+    /// Update [searchable attributes](https://www.meilisearch.com/docs/reference/api/settings#searchable-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -964,7 +1009,7 @@ impl Index {
         .await
     }
 
-    /// Update [displayed attributes](https://docs.meilisearch.com/reference/features/settings.html#displayed-attributes) of the [Index].
+    /// Update [displayed attributes](https://www.meilisearch.com/docs/reference/features/settings#displayed-attributes) of the [Index].
     ///
     /// # Example
     ///
@@ -1005,7 +1050,7 @@ impl Index {
         .await
     }
 
-    /// Update [faceting](https://docs.meilisearch.com/reference/api/settings.html#faceting) settings of the [Index].
+    /// Update [faceting](https://www.meilisearch.com/docs/reference/api/settings#faceting) settings of the [Index].
     ///
     /// # Example
     ///
@@ -1044,9 +1089,54 @@ impl Index {
         .await
     }
 
+    /// Update [typo tolerance](https://docs.meilisearch.com/learn/configuration/typo_tolerance.html#typo-tolerance) settings of the [Index].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use meilisearch_sdk::{client::*, indexes::*, settings::Settings, settings::{TypoToleranceSettings, MinWordSizeForTypos}};
+    /// #
+    /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
+    /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
+    /// #
+    /// # futures::executor::block_on(async move {
+    /// let client = Client::new(MEILISEARCH_URL, Some(MEILISEARCH_API_KEY));
+    /// # client.create_index("set_typo_tolerance", None).await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    /// let mut index = client.index("set_typo_tolerance");
+    ///
+    /// let typo_tolerance = TypoToleranceSettings{
+    ///     enabled: Some(true),
+    ///     disable_on_attributes: Some(vec!["title".to_string()]),
+    ///     disable_on_words: Some(vec![]),
+    ///     min_word_size_for_typos: Some(MinWordSizeForTypos::default()),
+    /// };
+    ///
+    /// let task = index.set_typo_tolerance(&typo_tolerance).await.unwrap();
+    /// # index.delete().await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    /// # });
+    /// ```
+    pub async fn set_typo_tolerance(
+        &self,
+        typo_tolerance: &TypoToleranceSettings,
+    ) -> Result<TaskInfo, Error> {
+        request::<(), &TypoToleranceSettings, TaskInfo>(
+            &format!(
+                "{}/indexes/{}/settings/typo-tolerance",
+                self.client.host, self.uid
+            ),
+            self.client.get_api_key(),
+            Method::Patch {
+                query: (),
+                body: typo_tolerance,
+            },
+            202,
+        )
+        .await
+    }
+
     /// Reset [Settings] of the [Index].
     ///
-    /// All settings will be reset to their [default value](https://docs.meilisearch.com/reference/api/settings.html#reset-settings).
+    /// All settings will be reset to their [default value](https://www.meilisearch.com/docs/reference/api/settings#reset-settings).
     ///
     /// # Example
     ///
@@ -1075,7 +1165,7 @@ impl Index {
         .await
     }
 
-    /// Reset [synonyms](https://docs.meilisearch.com/reference/features/synonyms.html) of the [Index].
+    /// Reset [synonyms](https://www.meilisearch.com/docs/reference/features/synonyms.html) of the [Index].
     ///
     /// # Example
     ///
@@ -1107,7 +1197,7 @@ impl Index {
         .await
     }
 
-    /// Reset [pagination](https://docs.meilisearch.com/learn/configuration/settings.html#pagination) of the [Index].
+    /// Reset [pagination](https://www.meilisearch.com/docs/learn/configuration/settings#pagination) of the [Index].
     ///
     /// # Example
     ///
@@ -1138,7 +1228,7 @@ impl Index {
         )
         .await
     }
-    /// Reset [stop-words](https://docs.meilisearch.com/reference/features/stop_words.html) of the [Index].
+    /// Reset [stop-words](https://www.meilisearch.com/docs/reference/features/stop_words.html) of the [Index].
     ///
     /// # Example
     ///
@@ -1170,7 +1260,7 @@ impl Index {
         .await
     }
 
-    /// Reset [ranking rules](https://docs.meilisearch.com/learn/core_concepts/relevancy.html#ranking-rules) of the [Index] to default value.
+    /// Reset [ranking rules](https://www.meilisearch.com/docs/learn/core_concepts/relevancy#ranking-rules) of the [Index] to default value.
     ///
     /// **Default value: `["words", "typo", "proximity", "attribute", "sort", "exactness"]`.**
     ///
@@ -1204,7 +1294,7 @@ impl Index {
         .await
     }
 
-    /// Reset [filterable attributes](https://docs.meilisearch.com/reference/features/filtering_and_faceted_search.html) of the [Index].
+    /// Reset [filterable attributes](https://www.meilisearch.com/docs/reference/features/filtering_and_faceted_search.html) of the [Index].
     ///
     /// # Example
     ///
@@ -1236,7 +1326,7 @@ impl Index {
         .await
     }
 
-    /// Reset [sortable attributes](https://docs.meilisearch.com/reference/features/sorting.html) of the [Index].
+    /// Reset [sortable attributes](https://www.meilisearch.com/docs/reference/features/sorting.html) of the [Index].
     ///
     /// # Example
     ///
@@ -1268,7 +1358,7 @@ impl Index {
         .await
     }
 
-    /// Reset the [distinct attribute](https://docs.meilisearch.com/reference/features/settings.html#distinct-attribute) of the [Index].
+    /// Reset the [distinct attribute](https://www.meilisearch.com/docs/reference/features/settings#distinct-attribute) of the [Index].
     ///
     /// # Example
     ///
@@ -1300,7 +1390,7 @@ impl Index {
         .await
     }
 
-    /// Reset [searchable attributes](https://docs.meilisearch.com/reference/features/field_properties.html#searchable-fields) of
+    /// Reset [searchable attributes](https://www.meilisearch.com/docs/reference/features/field_properties.html#searchable-fields) of
     /// the [Index] (enable all attributes).
     ///
     /// # Example
@@ -1333,7 +1423,7 @@ impl Index {
         .await
     }
 
-    /// Reset [displayed attributes](https://docs.meilisearch.com/reference/features/settings.html#displayed-attributes) of the [Index] (enable all attributes).
+    /// Reset [displayed attributes](https://www.meilisearch.com/docs/reference/features/settings#displayed-attributes) of the [Index] (enable all attributes).
     ///
     /// # Example
     ///
@@ -1365,7 +1455,7 @@ impl Index {
         .await
     }
 
-    /// Reset [faceting](https://docs.meilisearch.com/reference/api/settings.html#faceting) settings of the [Index].
+    /// Reset [faceting](https://www.meilisearch.com/docs/reference/api/settings#faceting) settings of the [Index].
     ///
     /// # Example
     ///
@@ -1388,6 +1478,38 @@ impl Index {
         request::<(), (), TaskInfo>(
             &format!(
                 "{}/indexes/{}/settings/faceting",
+                self.client.host, self.uid
+            ),
+            self.client.get_api_key(),
+            Method::Delete { query: () },
+            202,
+        )
+        .await
+    }
+
+    /// Reset [typo tolerance](https://docs.meilisearch.com/learn/configuration/typo_tolerance.html#typo-tolerance) settings of the [Index].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use meilisearch_sdk::{client::*, indexes::*, settings::Settings};
+    /// #
+    /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
+    /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
+    /// #
+    /// # futures::executor::block_on(async move {
+    /// let client = Client::new(MEILISEARCH_URL, Some(MEILISEARCH_API_KEY));
+    /// # client.create_index("reset_typo_tolerance", None).await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    /// let mut index = client.index("reset_typo_tolerance");
+    ///
+    /// let task = index.reset_typo_tolerance().await.unwrap();
+    /// # index.delete().await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    /// # });
+    /// ```
+    pub async fn reset_typo_tolerance(&self) -> Result<TaskInfo, Error> {
+        request::<(), (), TaskInfo>(
+            &format!(
+                "{}/indexes/{}/settings/typo-tolerance",
                 self.client.host, self.uid
             ),
             self.client.get_api_key(),
@@ -1495,5 +1617,75 @@ mod tests {
         let res = index.get_pagination().await.unwrap();
 
         assert_eq!(default, res);
+    }
+
+    #[meilisearch_test]
+    async fn test_get_typo_tolerance(index: Index) {
+        let expected = TypoToleranceSettings {
+            enabled: Some(true),
+            disable_on_attributes: Some(vec![]),
+            disable_on_words: Some(vec![]),
+            min_word_size_for_typos: Some(MinWordSizeForTypos {
+                one_typo: Some(5),
+                two_typos: Some(9),
+            }),
+        };
+
+        let res = index.get_typo_tolerance().await.unwrap();
+
+        assert_eq!(expected, res);
+    }
+
+    #[meilisearch_test]
+    async fn test_set_typo_tolerance(client: Client, index: Index) {
+        let expected = TypoToleranceSettings {
+            enabled: Some(true),
+            disable_on_attributes: Some(vec!["title".to_string()]),
+            disable_on_words: Some(vec![]),
+            min_word_size_for_typos: Some(MinWordSizeForTypos {
+                one_typo: Some(5),
+                two_typos: Some(9),
+            }),
+        };
+
+        let typo_tolerance = TypoToleranceSettings {
+            disable_on_attributes: Some(vec!["title".to_string()]),
+            ..Default::default()
+        };
+
+        let task_info = index.set_typo_tolerance(&typo_tolerance).await.unwrap();
+        client.wait_for_task(task_info, None, None).await.unwrap();
+
+        let res = index.get_typo_tolerance().await.unwrap();
+
+        assert_eq!(expected, res);
+    }
+
+    #[meilisearch_test]
+    async fn test_reset_typo_tolerance(index: Index) {
+        let expected = TypoToleranceSettings {
+            enabled: Some(true),
+            disable_on_attributes: Some(vec![]),
+            disable_on_words: Some(vec![]),
+            min_word_size_for_typos: Some(MinWordSizeForTypos {
+                one_typo: Some(5),
+                two_typos: Some(9),
+            }),
+        };
+
+        let typo_tolerance = TypoToleranceSettings {
+            disable_on_attributes: Some(vec!["title".to_string()]),
+            ..Default::default()
+        };
+
+        let task = index.set_typo_tolerance(&typo_tolerance).await.unwrap();
+        index.wait_for_task(task, None, None).await.unwrap();
+
+        let reset_task = index.reset_typo_tolerance().await.unwrap();
+        index.wait_for_task(reset_task, None, None).await.unwrap();
+
+        let default = index.get_typo_tolerance().await.unwrap();
+
+        assert_eq!(expected, default);
     }
 }

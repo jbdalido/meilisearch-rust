@@ -11,6 +11,8 @@ pub enum Error {
     /// Also check out: <https://github.com/meilisearch/Meilisearch/blob/main/meilisearch-error/src/lib.rs>
     #[error(transparent)]
     Meilisearch(#[from] MeilisearchError),
+    #[error(transparent)]
+    MeilisearchCommunication(#[from] MeilisearchCommunicationError),
     /// There is no Meilisearch server listening on the [specified host]
     /// (../client/struct.Client.html#method.new).
     #[error("The Meilisearch server can't be reached.")]
@@ -67,13 +69,37 @@ pub enum Error {
 
 #[derive(Debug, Clone, Deserialize, Error)]
 #[serde(rename_all = "camelCase")]
+
+pub struct MeilisearchCommunicationError {
+    pub status_code: u16,
+    pub message: Option<String>,
+    pub url: String,
+}
+
+impl std::fmt::Display for MeilisearchCommunicationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MeilisearchCommunicationError: The server responded with a {}.",
+            self.status_code
+        )?;
+        if let Some(message) = &self.message {
+            write!(f, " {}", message)?;
+        }
+        write!(f, "\nurl: {}", self.url)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Error)]
+#[serde(rename_all = "camelCase")]
 #[error("Meilisearch {}: {}: {}. {}", .error_type, .error_code, .error_message, .error_link)]
 pub struct MeilisearchError {
     /// The human readable error message
     #[serde(rename = "message")]
     pub error_message: String,
     /// The error code of the error.  Officially documented at
-    /// <https://docs.meilisearch.com/errors>.
+    /// <https://www.meilisearch.com/docs/reference/errors/error_codes>.
     #[serde(rename = "code")]
     pub error_code: ErrorCode,
     /// The type of error (invalid request, internal error, or authentication error)
@@ -115,7 +141,7 @@ impl std::fmt::Display for ErrorType {
 
 /// The error code.
 ///
-/// Officially documented at <https://docs.meilisearch.com/errors>.
+/// Officially documented at <https://www.meilisearch.com/docs/reference/errors/error_codes>.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
@@ -162,6 +188,8 @@ pub enum ErrorCode {
     InvalidIndexOffset,
     InvalidIndexLimit,
     InvalidIndexPrimaryKey,
+    InvalidDocumentFilter,
+    MissingDocumentFilter,
     InvalidDocumentFields,
     InvalidDocumentLimit,
     InvalidDocumentOffset,
@@ -233,6 +261,8 @@ pub enum ErrorCode {
     #[serde(other)]
     Unknown,
 }
+
+pub const MEILISEARCH_VERSION_HINT: &str = "Hint: It might not be working because you're not up to date with the Meilisearch version that updated the get_documents_with method";
 
 impl std::fmt::Display for ErrorCode {
     fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
@@ -310,6 +340,28 @@ mod test {
         .unwrap();
 
         assert_eq!(error.to_string(), ("Meilisearch internal: index_creation_failed: The cool error message.. https://the best link eveer"));
+
+        let error: MeilisearchCommunicationError = MeilisearchCommunicationError {
+            status_code: 404,
+            message: Some("Hint: something.".to_string()),
+            url: "http://localhost:7700/something".to_string(),
+        };
+
+        assert_eq!(
+            error.to_string(),
+            ("MeilisearchCommunicationError: The server responded with a 404. Hint: something.\nurl: http://localhost:7700/something")
+        );
+
+        let error: MeilisearchCommunicationError = MeilisearchCommunicationError {
+            status_code: 404,
+            message: None,
+            url: "http://localhost:7700/something".to_string(),
+        };
+
+        assert_eq!(
+            error.to_string(),
+            ("MeilisearchCommunicationError: The server responded with a 404.\nurl: http://localhost:7700/something")
+        );
 
         let error = Error::UnreachableServer;
         assert_eq!(

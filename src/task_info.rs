@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::time::Duration;
 use time::OffsetDateTime;
 
-use crate::{client::Client, errors::Error, tasks::*};
+use crate::{tasks::*, Client, Error};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,20 +27,20 @@ impl TaskInfo {
         self.task_uid
     }
 
-    /// Wait until Meilisearch processes a task provided by [TaskInfo], and get its status.
+    /// Wait until Meilisearch processes a task provided by [`TaskInfo`], and get its status.
     ///
     /// `interval` = The frequency at which the server should be polled. **Default = 50ms**
     ///
     /// `timeout` = The maximum time to wait for processing to complete. **Default = 5000ms**
     ///
-    /// If the waited time exceeds `timeout` then an [Error::Timeout] will be returned.
+    /// If the waited time exceeds `timeout` then an [`Error::Timeout`] will be returned.
     ///
-    /// See also [Client::wait_for_task, Index::wait_for_task].
+    /// See also [`Client::wait_for_task`, `Index::wait_for_task`].
     ///
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*, tasks::Task, task_info::TaskInfo};
+    /// # use meilisearch_sdk::{client::*, indexes::*, Task, TaskInfo};
     /// # use serde::{Serialize, Deserialize};
     /// #
     /// # #[derive(Debug, Serialize, Deserialize, PartialEq)]
@@ -50,9 +50,11 @@ impl TaskInfo {
     /// #    kind: String,
     /// # }
     /// #
+    /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
+    /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
     /// #
     /// # futures::executor::block_on(async move {
-    /// # let client = Client::new("http://localhost:7700", Some("masterKey"));
+    /// # let client = Client::new(MEILISEARCH_URL, Some(MEILISEARCH_API_KEY));
     /// let movies = client.index("movies_wait_for_completion");
     ///
     /// let status = movies.add_documents(&[
@@ -82,11 +84,7 @@ impl TaskInfo {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{
-        client::*,
-        errors::{ErrorCode, ErrorType},
-        indexes::Index,
-    };
+    use crate::{client::*, ErrorCode, ErrorType, Index};
     use big_s::S;
     use meilisearch_test_macro::meilisearch_test;
     use serde::{Deserialize, Serialize};

@@ -1,4 +1,4 @@
-use crate::{client::Client, errors::Error, indexes::Index};
+use crate::{Client, Error, Index};
 use either::Either;
 use serde::{de::DeserializeOwned, Deserialize, Serialize, Serializer};
 use serde_json::{Map, Value};
@@ -47,13 +47,13 @@ pub struct SearchResult<T> {
     pub matches_position: Option<HashMap<String, Vec<MatchRange>>>,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct FacetStats {
-    pub min: u32,
-    pub max: u32,
+    pub min: f64,
+    pub max: f64,
 }
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 /// A struct containing search results and other information about the search.
 pub struct SearchResults<T> {
@@ -103,16 +103,17 @@ fn serialize_attributes_to_crop_with_wildcard<S: Serializer>(
     match data {
         Some(Selectors::All) => ["*"].serialize(s),
         Some(Selectors::Some(data)) => {
-            let mut results = Vec::new();
-            for (name, value) in data.iter() {
-                let mut result = String::new();
-                result.push_str(name);
-                if let Some(value) = value {
-                    result.push(':');
-                    result.push_str(value.to_string().as_str());
-                }
-                results.push(result)
-            }
+            let results = data
+                .iter()
+                .map(|(name, value)| {
+                    let mut result = name.to_string();
+                    if let Some(value) = value {
+                        result.push(':');
+                        result.push_str(value.to_string().as_str());
+                    }
+                    result
+                })
+                .collect::<Vec<_>>();
             results.serialize(s)
         }
         None => s.serialize_none(),
@@ -136,13 +137,13 @@ type AttributeToCrop<'a> = (&'a str, Option<usize>);
 ///
 /// You can add search parameters using the builder syntax.
 ///
-/// See [this page](https://docs.meilisearch.com/reference/features/search_parameters.html#query-q) for the official list and description of all parameters.
+/// See [this page](https://www.meilisearch.com/docs/reference/api/search#query-q) for the official list and description of all parameters.
 ///
 /// # Examples
 ///
 /// ```
 /// # use serde::{Serialize, Deserialize};
-/// # use meilisearch_sdk::{client::Client, search::SearchQuery, indexes::Index};
+/// # use meilisearch_sdk::{Client, SearchQuery, Index};
 /// #
 /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
 /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
@@ -177,7 +178,7 @@ type AttributeToCrop<'a> = (&'a str, Option<usize>);
 /// ```
 ///
 /// ```
-/// # use meilisearch_sdk::{client::Client, search::SearchQuery, indexes::Index};
+/// # use meilisearch_sdk::{Client, SearchQuery, Index};
 /// #
 /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
 /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
@@ -231,7 +232,7 @@ pub struct SearchQuery<'a> {
     pub hits_per_page: Option<usize>,
     /// Filter applied to documents.
     ///
-    /// Read the [dedicated guide](https://docs.meilisearch.com/reference/features/filtering.html) to learn the syntax.
+    /// Read the [dedicated guide](https://www.meilisearch.com/docs/learn/advanced/filtering) to learn the syntax.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub filter: Option<Filter<'a>>,
     /// Facets for which to retrieve the matching count.
@@ -533,7 +534,7 @@ impl<'a, 'b> MultiSearchQuery<'a, 'b> {
         self.client.execute_multi_search_query::<T>(self).await
     }
 }
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct MultiSearchResponse<T> {
     pub results: Vec<SearchResults<T>>,
 }
@@ -556,6 +557,7 @@ mod tests {
         id: usize,
         value: String,
         kind: String,
+        number: i32,
         nested: Nested,
     }
 
@@ -569,18 +571,20 @@ mod tests {
 
     async fn setup_test_index(client: &Client, index: &Index) -> Result<(), Error> {
         let t0 = index.add_documents(&[
-            Document { id: 0, kind: "text".into(), value: S("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."), nested: Nested { child: S("first") } },
-            Document { id: 1, kind: "text".into(), value: S("dolor sit amet, consectetur adipiscing elit"), nested: Nested { child: S("second") } },
-            Document { id: 2, kind: "title".into(), value: S("The Social Network"), nested: Nested { child: S("third") } },
-            Document { id: 3, kind: "title".into(), value: S("Harry Potter and the Sorcerer's Stone"), nested: Nested { child: S("fourth") } },
-            Document { id: 4, kind: "title".into(), value: S("Harry Potter and the Chamber of Secrets"), nested: Nested { child: S("fift") } },
-            Document { id: 5, kind: "title".into(), value: S("Harry Potter and the Prisoner of Azkaban"), nested: Nested { child: S("sixth") } },
-            Document { id: 6, kind: "title".into(), value: S("Harry Potter and the Goblet of Fire"), nested: Nested { child: S("seventh") } },
-            Document { id: 7, kind: "title".into(), value: S("Harry Potter and the Order of the Phoenix"), nested: Nested { child: S("eighth") } },
-            Document { id: 8, kind: "title".into(), value: S("Harry Potter and the Half-Blood Prince"), nested: Nested { child: S("ninth") } },
-            Document { id: 9, kind: "title".into(), value: S("Harry Potter and the Deathly Hallows"), nested: Nested { child: S("tenth") } },
+            Document { id: 0, kind: "text".into(), number: 0, value: S("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."), nested: Nested { child: S("first") } },
+            Document { id: 1, kind: "text".into(), number: 10, value: S("dolor sit amet, consectetur adipiscing elit"), nested: Nested { child: S("second") } },
+            Document { id: 2, kind: "title".into(), number: 20, value: S("The Social Network"), nested: Nested { child: S("third") } },
+            Document { id: 3, kind: "title".into(), number: 30, value: S("Harry Potter and the Sorcerer's Stone"), nested: Nested { child: S("fourth") } },
+            Document { id: 4, kind: "title".into(), number: 40, value: S("Harry Potter and the Chamber of Secrets"), nested: Nested { child: S("fift") } },
+            Document { id: 5, kind: "title".into(), number: 50, value: S("Harry Potter and the Prisoner of Azkaban"), nested: Nested { child: S("sixth") } },
+            Document { id: 6, kind: "title".into(), number: 60, value: S("Harry Potter and the Goblet of Fire"), nested: Nested { child: S("seventh") } },
+            Document { id: 7, kind: "title".into(), number: 70, value: S("Harry Potter and the Order of the Phoenix"), nested: Nested { child: S("eighth") } },
+            Document { id: 8, kind: "title".into(), number: 80, value: S("Harry Potter and the Half-Blood Prince"), nested: Nested { child: S("ninth") } },
+            Document { id: 9, kind: "title".into(), number: 90, value: S("Harry Potter and the Deathly Hallows"), nested: Nested { child: S("tenth") } },
         ], None).await?;
-        let t1 = index.set_filterable_attributes(["kind", "value"]).await?;
+        let t1 = index
+            .set_filterable_attributes(["kind", "value", "number"])
+            .await?;
         let t2 = index.set_sortable_attributes(["title"]).await?;
 
         t2.wait_for_completion(client, None, None).await?;
@@ -663,6 +667,7 @@ mod tests {
                 id: 1,
                 value: S("dolor sit amet, consectetur adipiscing elit"),
                 kind: S("text"),
+                number: 10,
                 nested: Nested { child: S("second") }
             },
             &results.hits[0].result
@@ -793,6 +798,22 @@ mod tests {
     }
 
     #[meilisearch_test]
+    async fn test_query_facet_stats(client: Client, index: Index) -> Result<(), Error> {
+        setup_test_index(&client, &index).await?;
+
+        let mut query = SearchQuery::new(&index);
+        query.with_facets(Selectors::All);
+        let results: SearchResults<Document> = index.execute_query(&query).await?;
+        let facet_stats = results.facet_stats.unwrap();
+
+        assert_eq!(facet_stats.get("number").unwrap().min, 0.0);
+
+        assert_eq!(facet_stats.get("number").unwrap().max, 90.0);
+
+        Ok(())
+    }
+
+    #[meilisearch_test]
     async fn test_query_attributes_to_retrieve(client: Client, index: Index) -> Result<(), Error> {
         setup_test_index(&client, &index).await?;
 
@@ -834,6 +855,7 @@ mod tests {
                 id: 0,
                 value: S("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do…"),
                 kind: S("text"),
+                number: 0,
                 nested: Nested { child: S("first") }
             },
             results.hits[0].formatted_result.as_ref().unwrap()
@@ -848,6 +870,7 @@ mod tests {
                 id: 0,
                 value: S("Lorem ipsum dolor sit amet…"),
                 kind: S("text"),
+                number: 0,
                 nested: Nested { child: S("first") }
             },
             results.hits[0].formatted_result.as_ref().unwrap()
@@ -868,6 +891,7 @@ mod tests {
             id: 0,
             value: S("Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."),
             kind: S("text"),
+            number: 0,
             nested: Nested { child: S("first") }
         },
         results.hits[0].formatted_result.as_ref().unwrap());
@@ -882,6 +906,7 @@ mod tests {
                 id: 0,
                 value: S("Lorem ipsum dolor sit amet…"),
                 kind: S("text"),
+                number: 0,
                 nested: Nested { child: S("first") }
             },
             results.hits[0].formatted_result.as_ref().unwrap()
@@ -906,6 +931,7 @@ mod tests {
                 id: 0,
                 value: S("(ꈍᴗꈍ) sed do eiusmod tempor incididunt ut(ꈍᴗꈍ)"),
                 kind: S("text"),
+                number: 0,
                 nested: Nested { child: S("first") }
             },
             results.hits[0].formatted_result.as_ref().unwrap()
@@ -932,6 +958,7 @@ mod tests {
                 id: 2,
                 value: S("The (⊃｡•́‿•̀｡)⊃ Social ⊂(´• ω •`⊂) Network"),
                 kind: S("title"),
+                number: 20,
                 nested: Nested { child: S("third") }
             },
             results.hits[0].formatted_result.as_ref().unwrap()
@@ -953,6 +980,7 @@ mod tests {
                 id: 1,
                 value: S("<em>dolor</em> sit amet, consectetur adipiscing elit"),
                 kind: S("<em>text</em>"),
+                number: 10,
                 nested: Nested { child: S("first") }
             },
             results.hits[0].formatted_result.as_ref().unwrap(),
@@ -967,6 +995,7 @@ mod tests {
                 id: 1,
                 value: S("<em>dolor</em> sit amet, consectetur adipiscing elit"),
                 kind: S("text"),
+                number: 10,
                 nested: Nested { child: S("first") }
             },
             results.hits[0].formatted_result.as_ref().unwrap()
@@ -1045,7 +1074,7 @@ mod tests {
         client: Client,
         index: Index,
     ) -> Result<(), Error> {
-        use crate::key::{Action, KeyBuilder};
+        use crate::{Action, KeyBuilder};
 
         setup_test_index(&client, &index).await?;
 

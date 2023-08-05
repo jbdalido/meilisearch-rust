@@ -120,9 +120,18 @@ get_one_document_1: |-
     .await
     .unwrap();
 get_documents_1: |-
-  let index = client
-    .index("movies");
+  let index = client.index("movies");
   let documents: DocumentsResults = DocumentsQuery::new(&index)
+    .with_filter("genres = action")
+    .with_limit(2)
+    .execute::<Movies>()
+    .await
+    .unwrap();
+get_documents_post_1: |-
+  let index = client.index("books");
+  let documents: DocumentsResults = DocumentsQuery::new(&index)
+    .with_filter("(rating > 3 AND (genres = Adventure OR genres = Fiction)) AND language = English")
+    .with_fields(["title", "genres", "rating", "language"])
     .with_limit(2)
     .execute::<Movies>()
     .await
@@ -171,10 +180,17 @@ delete_one_document_1: |-
     .delete_document(25684)
     .await
     .unwrap();
-delete_documents_1: |-
+delete_documents_by_batch_1: |-
   let task: TaskInfo = client
     .index("movies")
     .delete_documents(&[23488, 153738, 437035, 363869])
+    .await
+    .unwrap();
+delete_documents_by_filter_1: |-
+  let index = client.index("movies");
+  let task = DocumentDeletionQuery::new(&index)
+    .with_filter("genres = action OR genres = adventure")
+    .execute()
     .await
     .unwrap();
 search_post_1: |-
@@ -277,6 +293,17 @@ update_settings_1: |-
   synonyms.insert(String::from("wolverine"), vec!["xmen", "logan"]);
   synonyms.insert(String::from("logan"), vec!["wolverine"]);
 
+  let min_word_size_for_typos = MinWordSizeForTypos {
+    one_typo: Some(4),
+    two_typos; Some(12)
+  }
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(true),
+    disable_on_attributes: Some(vec!["title".to_string()]),
+    disable_on_words: Some(vec![])
+    min_word_size_for_typos: Some(min_word_size_for_typos),
+  };
+
   let settings = Settings::new()
     .with_ranking_rules([
       "words",
@@ -309,7 +336,8 @@ update_settings_1: |-
       "title",
       "release_date"
     ])
-    .with_synonyms(synonyms);
+    .with_synonyms(synonyms)
+    .with_typo_tolerance(typo_tolerance);
 
   let task: TaskInfo = client
     .index("movies")
@@ -363,6 +391,48 @@ reset_pagination_settings_1: |-
   let task: TaskInfo = client
     .index("books")
     .reset_pagination()
+    .await
+    .unwrap();
+getting_started_typo_tolerance: |-
+  let min_word_size_for_typos = MinWordSizeForTypos {
+    one_typo: Some(5),
+    two_typos: Some(4)
+  }
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(true),
+    disable_on_attributes: Some(vec![]),
+    disable_on_words: Some(vec!["title".to_string()]),
+    min_word_size_for_typos: Some(min_word_size_for_typos),
+  };
+
+  let task: TaskInfo = client
+    .index("movies")
+    .set_typo_tolerance(&typo_tolerance)
+    .await
+    .unwrap();
+get_typo_tolerance_1: |-
+  let typo_tolerance: TypoToleranceSettings = client
+    .index("books")
+    .get_typo_tolerance()
+    .await
+    .unwrap();
+update_typo_tolerance_1: |-
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(false),
+    disable_on_attributes: None,
+    disable_on_words: None,
+    min_word_size_for_typos: None,
+  };
+
+  let task: TaskInfo = client
+    .index("books")
+    .set_typo_tolerance(&typo_tolerance)
+    .await
+    .unwrap();
+reset_typo_tolerance_1: |-
+  let task: TaskInfo = client
+    .index("books")
+    .reset_typo_tolerance()
     .await
     .unwrap();
 get_stop_words_1: |-
@@ -767,6 +837,90 @@ settings_guide_filterable_attributes_1: |-
     .set_settings(&settings)
     .await
     .unwrap();
+settings_guide_typo_tolerance_1: |-
+  let min_word_size_for_typos = MinWordSizeForTypos {
+    one_typo: Some(5),
+    two_typos: Some(12)
+  }
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(true),
+    disable_on_attributes: None,
+    disable_on_words: Some(vec!["title".to_string()]),
+    min_word_size_for_typos: Some(min_word_size_for_typos),
+  };
+
+  let settings = Settings::new()
+    .with_typo_tolerance(&typo_tolerance);
+
+  let task: TaskInfo = client
+    .index("movies")
+    .set_settings(&settings)
+    .await
+    .unwrap();
+typo_tolerance_guide_1: |-
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(false),
+    disable_on_attributes: None,
+    disable_on_words: None,
+    min_word_size_for_typos: None,
+  };
+
+  let task: TaskInfo = client
+    .index("movies")
+    .set_typo_tolerance(&typo_tolerance)
+    .await
+    .unwrap();
+typo_tolerance_guide_2: |-
+  let min_word_size_for_typos = MinWordSizeForTypos {
+    one_typo: Some(5),
+    two_typos: Some(12)
+  }
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(true),
+    disable_on_attributes: Some(vec!["title".to_string()]),
+    disable_on_words: None,
+    min_word_size_for_typos: None,
+  };
+
+  let task: TaskInfo = client
+    .index("movies")
+    .set_typo_tolerance(&typo_tolerance)
+    .await
+    .unwrap();
+typo_tolerance_guide_3: |-
+  let min_word_size_for_typos = MinWordSizeForTypos {
+    one_typo: Some(5),
+    two_typos: Some(12)
+  }
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(true),
+    disable_on_attributes: None,
+    disable_on_words: Some(vec!["shrek".to_string()]),
+    min_word_size_for_typos: Some(min_word_size_for_typos),
+  };
+
+  let task: TaskInfo = client
+    .index("movies")
+    .set_typo_tolerance(&typo_tolerance)
+    .await
+    .unwrap();
+typo_tolerance_guide_4: |-
+  let min_word_size_for_typos = MinWordSizeForTypos {
+    one_typo: Some(4),
+    two_typos: Some(12)
+  };
+  let typo_tolerance = TypoToleranceSettings {
+    enabled: Some(true),
+    disable_on_attributes: Some(vec![]),
+    disable_on_words: Some(vec!["title".to_string()]),
+    min_word_size_for_typos: Some(min_word_size_for_typos),
+  };
+
+  let task: TaskInfo = client
+    .index("movies")
+    .set_typo_tolerance(&typo_tolerance)
+    .await
+    .unwrap();
 add_movies_json_1: |-
   use meilisearch_sdk::{
     indexes::*,
@@ -854,7 +1008,7 @@ primary_field_guide_add_document_primary_key: |-
 getting_started_add_documents_md: |-
   ```toml
     [dependencies]
-    meilisearch-sdk = "0.23.1"
+    meilisearch-sdk = "0.24.1"
     # futures: because we want to block on futures
     futures = "0.3"
     # serde: required if you are going to use documents
@@ -903,7 +1057,7 @@ getting_started_add_documents_md: |-
   use futures::executor::block_on;
 
   fn main() { block_on(async move {
-    let client = Client::new("http://localhost:7700", Some("masterKey"));
+    let client = Client::new("http://localhost:7700", Some("aSampleMasterKey"));
 
     // reading and parsing the file
     let mut file = File::open("movies.json")
@@ -1183,7 +1337,7 @@ faceted_search_2: |-
       .build();
   let search_query_3 = SearchQuery::new(&books)
       .with_facets(Selectors::Some(&["genres"]))
-      .with_filter("language = English OR language = French")  
+      .with_filter("language = English OR language = French")
       .build();
 
   let books_response = client
@@ -1356,8 +1510,9 @@ get_all_keys_1: |-
     .await
     .unwrap();
 create_a_key_1: |-
-  let mut key_options = KeyBuilder::new("Add documents: Products API key");
+  let mut key_options = KeyBuilder::new();
   key_options
+    .with_name("Add documents: Products API key")
     .with_action(Action::DocumentsAdd)
     .with_expires_at(time::macros::datetime!(2042 - 04 - 02 00:42:42 UTC))
     .with_index("products");
@@ -1408,8 +1563,9 @@ security_guide_update_key_1: |-
     .update(&client);
 security_guide_create_key_1: |-
   let client = Client::new("http://localhost:7700", Some("masterKey"));
-  let mut key_options = KeyBuilder::new("Search patient records key");
+  let mut key_options = KeyBuilder::new();
   key_options
+    .with_name("Search patient records key")
     .with_action(Action::Search)
     .with_expires_at(time::macros::datetime!(2023 - 01 - 01 00:00:00 UTC))
     .with_index("patient_medical_records");
@@ -1478,7 +1634,7 @@ multi_search_1: |-
       .build();
   let search_query_2 = SearchQuery::new(&movie)
       .with_query("nemo")
-      .with_limit(5)      
+      .with_limit(5)
       .build();
 
   let movie_response = client

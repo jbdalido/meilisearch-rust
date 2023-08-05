@@ -1,6 +1,4 @@
-use meilisearch_sdk::client::Client;
-use meilisearch_sdk::indexes::Index;
-use meilisearch_sdk::settings::Settings;
+use meilisearch_sdk::{Client, Index, Settings};
 
 // we need an async runtime
 #[tokio::main(flavor = "current_thread")]
@@ -23,7 +21,7 @@ async fn main() {
         .expect("An error happened with the index creation.");
 
     // And now we can update the settings!
-    // You can read more about the available options here: https://docs.meilisearch.com/learn/configuration/settings.html#index-settings
+    // You can read more about the available options here: https://www.meilisearch.com/docs/learn/configuration/settings#index-settings
     let settings: Settings = Settings::new()
         .with_searchable_attributes(["name", "title"])
         .with_filterable_attributes(["created_at"]);
@@ -39,12 +37,11 @@ async fn main() {
         .expect("Could not join the remote server.");
 
     // We check if the task failed.
-    if task.is_failure() {
-        panic!(
-            "Could not update the settings. {}",
-            task.unwrap_failure().error_message
-        );
-    }
+    assert!(
+        !task.is_failure(),
+        "Could not update the settings. {}",
+        task.unwrap_failure().error_message
+    );
 
     // And finally we delete the `Index`.
     my_index
@@ -56,10 +53,9 @@ async fn main() {
         .expect("Could not join the remote server.");
 
     // We check if the task failed.
-    if task.is_failure() {
-        panic!(
-            "Could not delete the index. {}",
-            task.unwrap_failure().error_message
-        );
-    }
+    assert!(
+        !task.is_failure(),
+        "Could not delete the index. {}",
+        task.unwrap_failure().error_message
+    );
 }

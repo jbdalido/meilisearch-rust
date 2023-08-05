@@ -1,22 +1,18 @@
 use crate::{
-    client::Client,
-    documents::{DocumentQuery, DocumentsQuery, DocumentsResults},
-    errors::Error,
-    request::*,
-    search::*,
-    task_info::TaskInfo,
-    tasks::*,
+    request::*, search::*, tasks::*, Client, DocumentDeletionQuery, DocumentQuery, DocumentsQuery,
+    DocumentsResults, Error, MeilisearchCommunicationError, MeilisearchError, TaskInfo,
+    MEILISEARCH_VERSION_HINT,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Display, time::Duration};
 use time::OffsetDateTime;
 
-/// A Meilisearch [index](https://docs.meilisearch.com/learn/core_concepts/indexes.html).
+/// A Meilisearch [index](https://www.meilisearch.com/docs/learn/core_concepts/indexes).
 ///
 /// # Example
 ///
 /// You can create an index remotly and, if that succeed, make an `Index` out of it.
-/// See the [Client::create_index] method.
+/// See the [`Client::create_index`] method.
 /// ```
 /// # use meilisearch_sdk::{client::*, indexes::*};
 /// #
@@ -114,7 +110,7 @@ impl Index {
     /// # Example
     ///
     /// ```
-    /// # use meilisearch_sdk::{client::*, indexes::*, task_info::*, tasks::{Task, SucceededTask}};
+    /// # use meilisearch_sdk::{client::*, indexes::*, task_info::*, Task, SucceededTask};
     /// #
     /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
     /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
@@ -189,7 +185,7 @@ impl Index {
 
     /// Search for documents matching a specific query in the index.
     ///
-    /// See also [Index::search].
+    /// See also [`Index::search`].
     ///
     /// # Example
     ///
@@ -234,7 +230,7 @@ impl Index {
 
     /// Search for documents matching a specific query in the index.
     ///
-    /// See also [Index::execute_query].
+    /// See also [`Index::execute_query`].
     ///
     /// # Example
     ///
@@ -466,6 +462,39 @@ impl Index {
         &self,
         documents_query: &DocumentsQuery<'_>,
     ) -> Result<DocumentsResults<T>, Error> {
+        if documents_query.filter.is_some() {
+            let url = format!("{}/indexes/{}/documents/fetch", self.client.host, self.uid);
+            return request::<(), &DocumentsQuery, DocumentsResults<T>>(
+                &url,
+                self.client.get_api_key(),
+                Method::Post {
+                    body: documents_query,
+                    query: (),
+                },
+                200,
+            )
+            .await
+            .map_err(|err| match err {
+                Error::MeilisearchCommunication(error) => {
+                    Error::MeilisearchCommunication(MeilisearchCommunicationError {
+                        status_code: error.status_code,
+                        url: error.url,
+                        message: Some(format!("{}.", MEILISEARCH_VERSION_HINT)),
+                    })
+                }
+                Error::Meilisearch(error) => Error::Meilisearch(MeilisearchError {
+                    error_code: error.error_code,
+                    error_link: error.error_link,
+                    error_type: error.error_type,
+                    error_message: format!(
+                        "{}\n{}.",
+                        error.error_message, MEILISEARCH_VERSION_HINT
+                    ),
+                }),
+                _ => err,
+            });
+        }
+
         let url = format!("{}/indexes/{}/documents", self.client.host, self.uid);
         request::<&DocumentsQuery, (), DocumentsResults<T>>(
             &url,
@@ -483,9 +512,9 @@ impl Index {
     /// If you send an already existing document (same id) the **whole existing document** will be overwritten by the new document.
     /// Fields previously in the document not present in the new document are removed.
     ///
-    /// For a partial update of the document see [Index::add_or_update].
+    /// For a partial update of the document see [`Index::add_or_update`].
     ///
-    /// You can use the alias [Index::add_documents] if you prefer.
+    /// You can use the alias [`Index::add_documents`] if you prefer.
     ///
     /// # Example
     ///
@@ -563,7 +592,7 @@ impl Index {
     /// If you send an already existing document (same id) the **whole existing document** will be overwritten by the new document.
     /// Fields previously in the document not present in the new document are removed.
     ///
-    /// For a partial update of the document see [Index::add_or_update_unchecked_payload].
+    /// For a partial update of the document see [`Index::add_or_update_unchecked_payload`].
     ///
     /// # Example
     ///
@@ -624,7 +653,7 @@ impl Index {
         // .await
     }
 
-    /// Alias for [Index::add_or_replace].
+    /// Alias for [`Index::add_or_replace`].
     pub async fn add_documents<T: Serialize>(
         &self,
         documents: &[T],
@@ -638,7 +667,7 @@ impl Index {
     /// If you send an already existing document (same id) the old document will be only partially updated according to the fields of the new document.
     /// Thus, any fields not present in the new document are kept and remained unchanged.
     ///
-    /// To completely overwrite a document, check out the [Index::add_or_replace] documents method.
+    /// To completely overwrite a document, check out the [`Index::add_or_replace`] documents method.
     ///
     /// # Example
     ///
@@ -719,7 +748,7 @@ impl Index {
     /// If you send an already existing document (same id) the old document will be only partially updated according to the fields of the new document.
     /// Thus, any fields not present in the new document are kept and remained unchanged.
     ///
-    /// To completely overwrite a document, check out the [Index::add_or_replace_unchecked_payload] documents method.
+    /// To completely overwrite a document, check out the [`Index::add_or_replace_unchecked_payload`] documents method.
     ///
     /// # Example
     ///
@@ -928,7 +957,62 @@ impl Index {
         .await
     }
 
-    /// Alias for the [Index::update] method.
+    /// Delete a selection of documents with filters.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use serde::{Serialize, Deserialize};
+    /// # use meilisearch_sdk::{client::*, documents::*};
+    /// #
+    /// # let MEILISEARCH_URL = option_env!("MEILISEARCH_URL").unwrap_or("http://localhost:7700");
+    /// # let MEILISEARCH_API_KEY = option_env!("MEILISEARCH_API_KEY").unwrap_or("masterKey");
+    /// #
+    /// # #[derive(Serialize, Deserialize, Debug)]
+    /// # struct Movie {
+    /// #    name: String,
+    /// #    id: String,
+    /// # }
+    /// #
+    /// #
+    /// # futures::executor::block_on(async move {
+    /// #
+    /// # let client = Client::new(MEILISEARCH_URL, Some(MEILISEARCH_API_KEY));
+    /// let index = client.index("delete_documents_with");
+    /// #
+    /// # index.set_filterable_attributes(["id"]);
+    /// # // add some documents
+    /// # index.add_or_replace(&[Movie{id:String::from("1"), name: String::from("First movie") }, Movie{id:String::from("1"), name: String::from("First movie") }], Some("id")).await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    ///
+    /// let mut query = DocumentDeletionQuery::new(&index);
+    /// query.with_filter("id = 1");
+    /// // delete some documents
+    /// index.delete_documents_with(&query)
+    ///     .await
+    ///     .unwrap()
+    ///     .wait_for_completion(&client, None, None)
+    ///     .await
+    ///     .unwrap();
+    /// # index.delete().await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
+    /// # });
+    /// ```
+    pub async fn delete_documents_with(
+        &self,
+        query: &DocumentDeletionQuery<'_>,
+    ) -> Result<TaskInfo, Error> {
+        request::<(), &DocumentDeletionQuery, TaskInfo>(
+            &format!("{}/indexes/{}/documents/delete", self.client.host, self.uid),
+            self.client.get_api_key(),
+            Method::Post {
+                query: (),
+                body: query,
+            },
+            202,
+        )
+        .await
+    }
+
+    /// Alias for the [`Index::update`] method.
     pub async fn set_primary_key(
         &mut self,
         primary_key: impl AsRef<str>,
@@ -940,7 +1024,7 @@ impl Index {
 
     /// Fetch the information of the index as a raw JSON [Index], this index should already exist.
     ///
-    /// If you use it directly from the [Client], you can use the method [Client::get_raw_index], which is the equivalent method from the client.
+    /// If you use it directly from the [Client], you can use the method [`Client::get_raw_index`], which is the equivalent method from the client.
     ///
     /// # Example
     ///
@@ -998,7 +1082,7 @@ impl Index {
         Ok(self.primary_key.as_deref())
     }
 
-    /// Get a [Task] from a specific [Index] to keep track of [asynchronous operations](https://docs.meilisearch.com/learn/advanced/asynchronous_operations.html).
+    /// Get a [Task] from a specific [Index] to keep track of [asynchronous operations](https://www.meilisearch.com/docs/learn/advanced/asynchronous_operations).
     ///
     /// # Example
     ///
@@ -1147,9 +1231,9 @@ impl Index {
     ///
     /// `timeout` = The maximum time to wait for processing to complete. **Default = 5000ms**
     ///
-    /// If the waited time exceeds `timeout` then an [Error::Timeout] will be returned.
+    /// If the waited time exceeds `timeout` then an [`Error::Timeout`] will be returned.
     ///
-    /// See also [Client::wait_for_task, Task::wait_for_completion].
+    /// See also [`Client::wait_for_task`, `Task::wait_for_completion`].
     ///
     /// # Example
     ///
@@ -1353,7 +1437,7 @@ impl AsRef<str> for Index {
     }
 }
 
-/// An [IndexUpdater] used to update the specifics of an index.
+/// An [`IndexUpdater`] used to update the specifics of an index.
 ///
 /// # Example
 ///
@@ -1406,7 +1490,7 @@ impl<'a> IndexUpdater<'a> {
             uid: uid.as_ref().to_string(),
         }
     }
-    /// Define the new primary_key to set on the [Index].
+    /// Define the new `primary_key` to set on the [Index].
     ///
     /// # Example
     ///
@@ -1443,12 +1527,12 @@ impl<'a> IndexUpdater<'a> {
     /// # index.delete().await.unwrap().wait_for_completion(&client, None, None).await.unwrap();
     /// # });
     /// ```
-    pub fn with_primary_key(&mut self, primary_key: impl AsRef<str>) -> &mut Self {
+    pub fn with_primary_key(&mut self, primary_key: impl AsRef<str>) -> &mut IndexUpdater<'a> {
         self.primary_key = Some(primary_key.as_ref().to_string());
         self
     }
 
-    /// Execute the update of an [Index] using the [IndexUpdater].
+    /// Execute the update of an [Index] using the [`IndexUpdater`].
     ///
     /// # Example
     ///
@@ -1511,7 +1595,7 @@ impl<'a> AsRef<IndexUpdater<'a>> for IndexUpdater<'a> {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexStats {
     pub number_of_documents: usize,
@@ -1519,7 +1603,7 @@ pub struct IndexStats {
     pub field_distribution: HashMap<String, usize>,
 }
 
-/// An [IndexesQuery] containing filter and pagination parameters when searching for [Indexes](Index).
+/// An [`IndexesQuery`] containing filter and pagination parameters when searching for [Indexes](Index).
 ///
 /// # Example
 ///

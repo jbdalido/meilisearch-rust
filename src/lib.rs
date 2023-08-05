@@ -38,7 +38,7 @@
 //! })}
 //! ```
 //!
-//! With the `uid`, you can check the status (`enqueued`, `processing`, `succeeded` or `failed`) of your documents addition using the [task](https://docs.meilisearch.com/reference/api/tasks.html#get-task).
+//! With the `uid`, you can check the status (`enqueued`, `processing`, `succeeded` or `failed`) of your documents addition using the [task](https://www.meilisearch.com/docs/reference/api/tasks#get-task).
 //!
 //! ### Basic Search <!-- omit in TOC -->
 //!
@@ -158,7 +158,7 @@
 //!
 //! You only need to perform this operation once.
 //!
-//! Note that Meilisearch will rebuild your index whenever you update `filterableAttributes`. Depending on the size of your dataset, this might take time. You can track the process using the [tasks](https://docs.meilisearch.com/reference/api/tasks.html#get-task)).
+//! Note that Meilisearch will rebuild your index whenever you update `filterableAttributes`. Depending on the size of your dataset, this might take time. You can track the process using the [tasks](https://www.meilisearch.com/docs/reference/api/tasks#get-task).
 //!
 //! Then, you can perform the search:
 //!
@@ -223,26 +223,26 @@
 #![warn(clippy::all)]
 #![allow(clippy::needless_doctest_main)]
 
-/// Module containing the [client::Client] struct.
+/// Module containing the [`client::Client`] struct.
 pub mod client;
 /// Module representing the [documents] structures.
 pub mod documents;
 /// Module containing the [dumps] trait.
 pub mod dumps;
-/// Module containing the [errors::Error] struct.
+/// Module containing the [`errors::Error`] struct.
 pub mod errors;
 /// Module containing the Index struct.
 pub mod indexes;
-/// Module containing the [key::Key] struct.
+/// Module containing the [`key::Key`] struct.
 pub mod key;
 mod request;
 /// Module related to search queries and results.
 pub mod search;
-/// Module containing [settings::Settings].
+/// Module containing [`settings::Settings`].
 pub mod settings;
-/// Module representing the [task_info::TaskInfo]s.
+/// Module representing the [`task_info::TaskInfo`]s.
 pub mod task_info;
-/// Module representing the [tasks::Task]s.
+/// Module representing the [`tasks::Task`]s.
 pub mod tasks;
 /// Module that generates tenant tokens.
 mod tenant_tokens;
@@ -250,6 +250,15 @@ mod tenant_tokens;
 mod utils;
 
 pub use client::*;
+pub use documents::*;
+pub use dumps::*;
+pub use errors::*;
+pub use indexes::*;
+pub use key::*;
+pub use search::*;
+pub use settings::*;
+pub use task_info::*;
+pub use tasks::*;
 
 #[cfg(test)]
 /// Support for the `IndexConfig` derive proc macro in the crate's tests.
