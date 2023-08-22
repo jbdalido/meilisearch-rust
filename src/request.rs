@@ -48,6 +48,7 @@ pub(crate) async fn request<
     }
     // TODO: do not create a client per request
     let client = Client::builder()
+        .http1_only()
         .user_agent(qualified_version())
         .default_headers(headers)
         .build()
